@@ -1,6 +1,37 @@
 ## Pretext
 
+Pure JavaScript/TypeScript library (`@chenglou/pretext`, v0.0.2) for multiline text measurement & layout without DOM reflows. Uses canvas `measureText()` for segment widths and implements its own line-breaking engine. Supports all languages, emoji, bidi, CJK, Southeast Asian scripts, and complex mixed text.
+
+**Architecture**: Two-phase model — `prepare()` (one-time segmentation + measurement) → `layout()` (pure arithmetic resize hot path, no DOM/canvas/string work). Rich APIs (`prepareWithSegments()`, `layoutWithLines()`, `walkLineRanges()`, `layoutNextLine()`) for custom rendering.
+
+**Runtime**: Bun for tooling and dev server. TypeScript with ES modules. No build step for the library itself (ships `.ts` source).
+
 Internal notes for contributors and agents. Use `README.md` as the public source of truth for API examples and user-facing limitations. Use `STATUS.md` for the compact current browser-accuracy / benchmark dashboard, `accuracy/chrome.json` / `accuracy/safari.json` / `accuracy/firefox.json` for the checked-in raw browser accuracy rows, `benchmarks/chrome.json` and `benchmarks/safari.json` for the checked-in current benchmark snapshots, `corpora/STATUS.md` for the compact corpus snapshot, `corpora/representative.json` for the current machine-readable representative corpus rows, `corpora/TAXONOMY.md` for the shared mismatch vocabulary, `RESEARCH.md` for the detailed exploration log, and `TODO.md` for the current priorities.
+
+### Repository layout
+
+```
+src/              Core library (7 files: layout, analysis, measurement, line-break, bidi, test-data, tests)
+pages/            Browser tooling pages (accuracy, benchmark, corpus, probe, gatsby, diagnostics)
+pages/demos/      Public demo pages (accordion, bubbles, dynamic-layout, editorial-engine, masonry, rich-note, variable-typographic-ascii)
+scripts/          CLI testing & validation scripts (13 scripts for accuracy, corpus, benchmark, gatsby, probe work)
+corpora/          Long-form language test texts (14+ corpora in 12+ languages) + metadata
+accuracy/         Checked-in browser accuracy snapshots (chrome.json, safari.json, firefox.json)
+benchmarks/       Checked-in benchmark snapshots (chrome.json, safari.json)
+.github/          CI/CD (GitHub Pages deployment via Bun)
+```
+
+### Other documentation
+
+- `DEVELOPMENT.md` — dev setup, useful pages, deep profiling guidance
+- `CHANGELOG.md` — version history (0.0.0 → 0.0.2)
+- `README.md` — public API docs, demos, installation, caveats
+- `STATUS.md` — compact browser accuracy + benchmark dashboard
+- `TODO.md` — current priorities and anti-priorities
+- `RESEARCH.md` — detailed exploration log and durable conclusions
+- `corpora/STATUS.md` — long-form corpus canary snapshot
+- `corpora/TAXONOMY.md` — shared mismatch classification vocabulary
+- `corpora/README.md` — corpus sources and acquisition methods
 
 ### Commands
 
@@ -25,6 +56,7 @@ Internal notes for contributors and agents. Use `README.md` as the public source
 
 ### Important files
 
+**Core library (`src/`)**:
 - `src/layout.ts` — core library; keep `layout()` fast and allocation-light
 - `src/analysis.ts` — normalization, segmentation, glue rules, and text-analysis phase for `prepare()`
 - `src/measurement.ts` — canvas measurement runtime, segment metrics cache, emoji correction, and engine-profile shims
@@ -32,16 +64,37 @@ Internal notes for contributors and agents. Use `README.md` as the public source
 - `src/bidi.ts` — simplified bidi metadata helper for the rich `prepareWithSegments()` path
 - `src/test-data.ts` — shared corpus for browser accuracy pages/checkers and benchmarks
 - `src/layout.test.ts` — small durable invariant tests for the exported prepare/layout APIs
+
+**Browser tooling pages (`pages/`)**:
 - `pages/accuracy.ts` — browser sweep plus per-line diagnostics
-- `accuracy/chrome.json` / `accuracy/safari.json` / `accuracy/firefox.json` — checked-in raw accuracy rows backing `STATUS.md`
 - `pages/benchmark.ts` — performance comparisons
-- `benchmarks/chrome.json` / `benchmarks/safari.json` — checked-in current benchmark snapshots backing `STATUS.md`
-- `corpora/representative.json` — checked-in representative corpus anchor rows backing `corpora/STATUS.md`
+- `pages/corpus.ts` — long-form corpus diagnostics page
+- `pages/probe.ts` — single-snippet isolation page
+- `pages/gatsby.ts` — Gatsby canary diagnostics page
 - `pages/diagnostic-utils.ts` — shared grapheme-safe diagnostic helpers used by the browser check pages
-- `scripts/pre-wrap-check.ts` — small permanent browser-oracle sweep for the non-default `{ whiteSpace: 'pre-wrap' }` mode
+
+**Demo pages (`pages/demos/`)**:
 - `pages/demos/index.html` — public static demo landing page used as the GitHub Pages site root
 - `pages/demos/bubbles.ts` — bubble shrinkwrap demo using the rich non-materializing line-range walker
 - `pages/demos/dynamic-layout.ts` — fixed-height editorial spread with a continuous two-column flow, obstacle-aware title routing, and live logo-driven reflow
+- `pages/demos/editorial-engine.ts` — rich text demo with selection interaction
+- `pages/demos/rich-note.ts` — rich note-taking demo
+- `pages/demos/accordion.ts` — interactive accordion demo
+- `pages/demos/masonry/` — masonry layout demo
+- `pages/demos/variable-typographic-ascii.ts` — typographic demo
+- `pages/demos/wrap-geometry.ts` — shared wrap-geometry utilities for demos
+- `pages/demos/bubbles-shared.ts` — shared bubble utilities
+- `pages/demos/dynamic-layout-text.ts` — text content for the dynamic-layout demo
+
+**Checked-in data**:
+- `accuracy/chrome.json` / `accuracy/safari.json` / `accuracy/firefox.json` — checked-in raw accuracy rows backing `STATUS.md`
+- `benchmarks/chrome.json` / `benchmarks/safari.json` — checked-in current benchmark snapshots backing `STATUS.md`
+- `corpora/representative.json` — checked-in representative corpus anchor rows backing `corpora/STATUS.md`
+
+**Scripts (`scripts/`)**:
+- `scripts/browser-automation.ts` — shared browser control (Puppeteer-style, single-owner lock per browser)
+- `scripts/build-demo-site.ts` — static site builder for GitHub Pages deployment
+- `scripts/pre-wrap-check.ts` — small permanent browser-oracle sweep for the non-default `{ whiteSpace: 'pre-wrap' }` mode
 
 ### Implementation notes
 
@@ -115,6 +168,11 @@ Internal notes for contributors and agents. Use `README.md` as the public source
 - ASCII fast path could skip some CJK, bidi, and emoji overhead.
 - Benchmark methodology still needs review.
 - Additional CSS configs are still untested: `break-all`, `keep-all`, `strict`, `loose`, `anywhere`.
+
+### CI/CD
+
+- GitHub Pages deployment via `.github/workflows/pages.yml`: checkout → `bun install --frozen-lockfile` → `bun run site:build` → deploy to GitHub Pages
+- No automated test CI yet; accuracy/corpus/benchmark checks are run manually via the CLI scripts
 
 ### Related
 
