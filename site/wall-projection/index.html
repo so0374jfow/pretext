@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Wall Projection — Da Capo Bar, Zürich HB</title>
+<link rel="modulepreload" href="../src/layout.ts">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Space+Mono:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #0a0a08;
+    --warm-black: #151310;
+    --beam: #f5e6c8;
+    --beam-bright: #faf3e4;
+    --amber: #c9944a;
+    --amber-dim: #7a5c30;
+    --smoke: #3a3530;
+    --ash: #6b635a;
+    --dust: #9e9487;
+    --flicker: 1;
+  }
+
+  html {
+    background: var(--black);
+    color: var(--beam);
+    font-family: "EB Garamond", Georgia, "Times New Roman", serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    overflow-x: hidden;
+    background:
+      radial-gradient(ellipse 60% 80% at 50% 18%, rgba(201, 148, 74, 0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 50% at 50% 12%, rgba(245, 230, 200, 0.04) 0%, transparent 60%),
+      var(--black);
+  }
+
+  /* ── film grain overlay ── */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px;
+    mix-blend-mode: overlay;
+    animation: grain 0.4s steps(1) infinite;
+  }
+
+  @keyframes grain {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-2px, 3px); }
+    50% { transform: translate(3px, -1px); }
+    75% { transform: translate(-1px, -2px); }
+  }
+
+  /* ── projector beam cone ── */
+  .beam {
+    position: fixed;
+    top: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 300px;
+    background: linear-gradient(to bottom, rgba(245, 230, 200, 0.12), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .beam::after {
+    content: "";
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(ellipse at center top, rgba(201, 148, 74, 0.04) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  /* ── layout ── */
+  .page {
+    position: relative;
+    z-index: 1;
+    width: min(720px, calc(100vw - 40px));
+    margin: 0 auto;
+    padding: 80px 0 120px;
+  }
+
+  /* ── the mark / logo ── */
+  .mark {
+    text-align: center;
+    margin-bottom: 64px;
+    opacity: calc(0.88 * var(--flicker));
+    transition: opacity 0.15s;
+  }
+
+  .mark-glyph {
+    display: inline-block;
+    width: 48px;
+    height: 48px;
+    border: 1.5px solid var(--amber-dim);
+    border-radius: 50%;
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .mark-glyph::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    background: var(--amber);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 18px rgba(201, 148, 74, 0.4);
+  }
+
+  .mark-title {
+    font: 700 11px/1 "Space Mono", "SF Mono", ui-monospace, monospace;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  /* ── hero ── */
+  .hero {
+    text-align: center;
+    margin-bottom: 72px;
+  }
+
+  .hero h1 {
+    font: 400 clamp(42px, 8vw, 72px)/1.0 "EB Garamond", Georgia, serif;
+    letter-spacing: -0.01em;
+    color: var(--beam-bright);
+    margin-bottom: 10px;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--amber);
+  }
+
+  .hero-sub {
+    font: 400 11px/1.6 "Space Mono", ui-monospace, monospace;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ash);
+  }
+
+  .hero-rule {
+    display: block;
+    width: 40px;
+    height: 1px;
+    background: var(--amber-dim);
+    margin: 28px auto;
+    border: none;
+  }
+
+  /* ── description ── */
+  .description {
+    max-width: 540px;
+    margin: 0 auto 64px;
+    font: 400 19px/1.72 "EB Garamond", Georgia, serif;
+    color: var(--dust);
+    text-align: center;
+  }
+
+  .description strong {
+    color: var(--beam);
+    font-weight: 400;
+  }
+
+  /* ── programme cards ── */
+  .programme {
+    margin-bottom: 72px;
+  }
+
+  .section-label {
+    font: 700 10px/1 "Space Mono", ui-monospace, monospace;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--amber-dim);
+    margin-bottom: 28px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(201, 148, 74, 0.15);
+  }
+
+  .screening {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 0 28px;
+    padding: 24px 0;
+    border-bottom: 1px solid rgba(245, 230, 200, 0.06);
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeUp 0.6s ease forwards;
+  }
+
+  .screening:nth-child(2) { animation-delay: 0.1s; }
+  .screening:nth-child(3) { animation-delay: 0.2s; }
+  .screening:nth-child(4) { animation-delay: 0.3s; }
+  .screening:nth-child(5) { animation-delay: 0.35s; }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .screening-meta {
+    font: 400 12px/1.6 "Space Mono", ui-monospace, monospace;
+    color: var(--ash);
+    padding-top: 3px;
+  }
+
+  .screening-number {
+    display: block;
+    font: 700 11px/1 "Space Mono", ui-monospace, monospace;
+    color: var(--amber-dim);
+    margin-bottom: 6px;
+    letter-spacing: 0.1em;
+  }
+
+  .screening-body h3 {
+    font: 600 22px/1.3 "EB Garamond", Georgia, serif;
+    color: var(--beam-bright);
+    margin-bottom: 6px;
+  }
+
+  .screening-body p {
+    font: 400 15.5px/1.65 "EB Garamond", Georgia, serif;
+    color: var(--dust);
+  }
+
+  .screening-body .artist {
+    font-style: italic;
+    color: var(--amber);
+  }
+
+  /* ── the wall: text projection canvas ── */
+  .wall-section {
+    margin-bottom: 72px;
+  }
+
+  .wall {
+    position: relative;
+    background: linear-gradient(180deg, rgba(21, 19, 16, 0.9) 0%, rgba(10, 10, 8, 0.95) 100%);
+    border: 1px solid rgba(201, 148, 74, 0.1);
+    border-radius: 2px;
+    padding: 40px 36px;
+    min-height: 260px;
+    overflow: hidden;
+  }
+
+  .wall::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(201, 148, 74, 0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .wall-line {
+    font: 400 17px/2.0 "EB Garamond", Georgia, serif;
+    color: var(--beam);
+    opacity: 0;
+    white-space: pre-wrap;
+    position: relative;
+    transition: opacity 0.8s ease;
+  }
+
+  .wall-line.visible {
+    opacity: 0.85;
+  }
+
+  .wall-line.dim {
+    opacity: 0.3;
+  }
+
+  .wall-cursor {
+    display: inline-block;
+    width: 1px;
+    height: 1.1em;
+    background: var(--amber);
+    vertical-align: text-bottom;
+    animation: blink 1.1s steps(1) infinite;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ── venue info ── */
+  .venue {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 72px;
+    padding: 32px;
+    border: 1px solid rgba(201, 148, 74, 0.1);
+    border-radius: 2px;
+    background: rgba(21, 19, 16, 0.5);
+  }
+
+  .venue-block h4 {
+    font: 700 10px/1 "Space Mono", ui-monospace, monospace;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--amber-dim);
+    margin-bottom: 12px;
+  }
+
+  .venue-block p {
+    font: 400 15px/1.7 "EB Garamond", Georgia, serif;
+    color: var(--dust);
+  }
+
+  .venue-block a {
+    color: var(--amber);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(201, 148, 74, 0.25);
+    transition: border-color 0.2s;
+  }
+
+  .venue-block a:hover {
+    border-color: var(--amber);
+  }
+
+  /* ── footer ── */
+  .colophon {
+    text-align: center;
+    padding-top: 32px;
+    border-top: 1px solid rgba(201, 148, 74, 0.08);
+  }
+
+  .colophon p {
+    font: 400 11px/1.8 "Space Mono", ui-monospace, monospace;
+    color: var(--smoke);
+    letter-spacing: 0.05em;
+  }
+
+  .colophon .ubuweb {
+    color: var(--ash);
+  }
+
+  /* ── scroll text ticker ── */
+  .ticker-track {
+    overflow: hidden;
+    white-space: nowrap;
+    margin-bottom: 72px;
+    padding: 14px 0;
+    border-top: 1px solid rgba(201, 148, 74, 0.08);
+    border-bottom: 1px solid rgba(201, 148, 74, 0.08);
+  }
+
+  .ticker-inner {
+    display: inline-block;
+    animation: ticker 40s linear infinite;
+    font: 400 13px/1 "Space Mono", ui-monospace, monospace;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--smoke);
+  }
+
+  .ticker-inner span {
+    padding: 0 32px;
+  }
+
+  .ticker-inner .sep {
+    color: var(--amber-dim);
+    padding: 0 16px;
+  }
+
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ── flicker effect ── */
+  @keyframes projectorFlicker {
+    0%, 96%, 100% { --flicker: 1; }
+    97% { --flicker: 0.7; }
+    98% { --flicker: 1; }
+    99% { --flicker: 0.85; }
+  }
+
+  .mark {
+    animation: projectorFlicker 8s steps(1) infinite;
+  }
+
+  /* ── responsive ── */
+  @media (max-width: 600px) {
+    .page { padding: 48px 0 80px; }
+    .hero { margin-bottom: 48px; }
+    .screening {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    .screening-meta { padding-top: 0; margin-bottom: 8px; }
+    .venue {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .wall { padding: 28px 20px; }
+    .description { font-size: 17px; }
+  }
+</style>
+<script type="module" crossorigin src="../wall-projection-a3dcmf02.js"></script></head>
+<body>
+
+<div class="beam"></div>
+
+<main class="page">
+
+  <!-- projector mark -->
+  <div class="mark">
+    <div class="mark-glyph"></div>
+    <div class="mark-title">The Wall Projection</div>
+  </div>
+
+  <!-- hero -->
+  <header class="hero">
+    <h1>The <em>Wall</em><br>Projection</h1>
+    <hr class="hero-rule">
+    <p class="hero-sub">Artist Saloon &amp; Film Screening</p>
+    <p class="hero-sub">Da Capo Bar · Zürich HB · Sundays</p>
+  </header>
+
+  <!-- description -->
+  <div class="description">
+    <strong>A screening that is also a lecture, a lecture that is also a scroll.</strong>
+    An artist presents their own work, or films that have shaped them,
+    accompanied by short commentary — like a 2½-hour drift through
+    UbuWeb with an audience, in a bar designed by Trix &amp; Robert Haussmann
+    that almost nobody finds.
+  </div>
+
+  <!-- scrolling ticker -->
+  <div class="ticker-track">
+    <div class="ticker-inner">
+      <span>Kenneth Anger</span><span class="sep">◆</span>
+      <span>Chantal Akerman</span><span class="sep">◆</span>
+      <span>Chris Marker</span><span class="sep">◆</span>
+      <span>Maya Deren</span><span class="sep">◆</span>
+      <span>Jonas Mekas</span><span class="sep">◆</span>
+      <span>Harun Farocki</span><span class="sep">◆</span>
+      <span>Hito Steyerl</span><span class="sep">◆</span>
+      <span>Stan Brakhage</span><span class="sep">◆</span>
+      <span>Agnès Varda</span><span class="sep">◆</span>
+      <span>Peter Tscherkassky</span><span class="sep">◆</span>
+      <span>Apichatpong Weerasethakul</span><span class="sep">◆</span>
+      <span>Carolee Schneemann</span><span class="sep">◆</span>
+      <!-- duplicate for seamless loop -->
+      <span>Kenneth Anger</span><span class="sep">◆</span>
+      <span>Chantal Akerman</span><span class="sep">◆</span>
+      <span>Chris Marker</span><span class="sep">◆</span>
+      <span>Maya Deren</span><span class="sep">◆</span>
+      <span>Jonas Mekas</span><span class="sep">◆</span>
+      <span>Harun Farocki</span><span class="sep">◆</span>
+      <span>Hito Steyerl</span><span class="sep">◆</span>
+      <span>Stan Brakhage</span><span class="sep">◆</span>
+      <span>Agnès Varda</span><span class="sep">◆</span>
+      <span>Peter Tscherkassky</span><span class="sep">◆</span>
+      <span>Apichatpong Weerasethakul</span><span class="sep">◆</span>
+      <span>Carolee Schneemann</span><span class="sep">◆</span>
+    </div>
+  </div>
+
+  <!-- the wall: projected text -->
+  <section class="wall-section">
+    <p class="section-label">On the Wall</p>
+    <div class="wall" id="wall"></div>
+  </section>
+
+  <!-- upcoming programme -->
+  <section class="programme" id="programme">
+    <p class="section-label">Programme</p>
+
+    <div class="screening">
+      <div class="screening-meta">
+        <span class="screening-number">No. 001</span>
+        TBD<br>Sunday, 13:00
+      </div>
+      <div class="screening-body">
+        <h3>Opening Session</h3>
+        <p>The first presenter picks a thread — <span class="artist">their work, their influences, their obsessions</span> — and projects it onto the wall. Commentary between clips. No fixed format. The audience has drinks.</p>
+      </div>
+    </div>
+
+    <div class="screening">
+      <div class="screening-meta">
+        <span class="screening-number">No. 002</span>
+        TBD<br>Sunday, 13:00
+      </div>
+      <div class="screening-body">
+        <h3>Session Two</h3>
+        <p>A different artist, a different wall. Could be 16mm transfers, could be screen recordings, could be a single durational piece with annotations whispered over the top.</p>
+      </div>
+    </div>
+
+    <div class="screening">
+      <div class="screening-meta">
+        <span class="screening-number">No. 003</span>
+        TBD<br>Sunday, 13:00
+      </div>
+      <div class="screening-body">
+        <h3>Session Three</h3>
+        <p>The format settles or it doesn't. Each session is its own thing. The only constant: the wall, the bar, and the fact that almost nobody knows this place exists.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- venue info -->
+  <div class="venue">
+    <div class="venue-block">
+      <h4>Location</h4>
+      <p>
+        Da Capo Bar<br>
+        Inside Zürich HB main station<br>
+        Below the station hall, near Gleis 6<br>
+        <em style="color: var(--ash); font-size: 14px;">Designed by Trix &amp; Robert Haussmann.<br>
+        Almost always empty.</em>
+      </p>
+    </div>
+    <div class="venue-block">
+      <h4>Format</h4>
+      <p>
+        Sundays around lunchtime.<br>
+        ~2.5 hours, flexible.<br>
+        Somewhere between a screening<br>
+        and a lecture. Drinks at the bar.<br>
+        <em style="color: var(--ash); font-size: 14px;">Free admission, naturally.</em>
+      </p>
+    </div>
+  </div>
+
+  <!-- colophon -->
+  <footer class="colophon">
+    <p>
+      The children's cinema happens here too, on other Sundays.
+    </p>
+    <p class="ubuweb">
+      "All intellectual work is the same — the way a film or a novel or a piece of music or a
+      mathematical formula relates to existing work in the field." — Kenneth Goldsmith
+    </p>
+    <p style="margin-top: 12px; color: var(--amber-dim);">
+      the wall projection — zürich hb — 2026
+    </p>
+  </footer>
+
+</main>
+
+
+</body>
+</html>
