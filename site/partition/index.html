@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partition</title>
+<link rel="modulepreload" href="../src/layout.ts">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #080808;
+    color: #bbb;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  #world {
+    position: absolute;
+    width: 0;
+    height: 0;
+    left: 50%;
+    top: 50%;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  .plane {
+    position: absolute;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    padding: 12px 16px;
+    transform-origin: center center;
+    will-change: transform, opacity;
+  }
+
+  .plane-text {
+    white-space: pre;
+    line-height: 1;
+  }
+
+  /* ── fog / depth fade handled by JS opacity ── */
+
+  /* ── HUD ── */
+  #hud {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    font: 10px/1.4 "SF Mono", ui-monospace, monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #333;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 3s ease;
+  }
+
+  #hud.faded { opacity: 0; }
+
+  #depth-indicator {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    z-index: 100;
+    font: 9px/1 "SF Mono", ui-monospace, monospace;
+    color: #2a2a2a;
+    letter-spacing: 0.1em;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  #title-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 2s ease;
+  }
+
+  #title-overlay.hidden { opacity: 0; }
+
+  #title-overlay h1 {
+    font: 300 clamp(28px, 5vw, 48px)/1.1 "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #ccc;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+
+  #title-overlay p {
+    font: 10px/1.6 "SF Mono", ui-monospace, monospace;
+    color: #444;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+</style>
+<script type="module" crossorigin src="../partition-54b1qhs0.js"></script></head>
+<body>
+  <div id="viewport">
+    <div id="world"></div>
+  </div>
+
+  <div id="title-overlay">
+    <h1>Partition</h1>
+    <p>click to enter &middot; wasd to move &middot; mouse to look</p>
+  </div>
+
+  <div id="hud">wasd &middot; mouse look</div>
+  <div id="depth-indicator"></div>
+
+  
+</body>
+</html>
