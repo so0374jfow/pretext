@@ -10,187 +10,116 @@
 
   html, body {
     height: 100%;
-    background: #000;
-    color: #999;
     overflow: hidden;
-    font-family: "SF Mono", ui-monospace, "Cascadia Mono", monospace;
+    background: #080808;
+    color: #bbb;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
-  #container {
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-  }
-
-  /* ── spectrogram ── */
-  #canvas-container {
-    flex: 1;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 24px 32px 48px;
-    min-width: 0;
-  }
-
-  canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-  }
-
-  #scan-line {
-    position: absolute;
-    left: 48px;
-    right: 24px;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.35);
-    pointer-events: none;
-    z-index: 2;
-    transition: top 40ms linear;
-  }
-
-  /* ── critical width marks on left margin ── */
-  .critical-mark {
-    position: absolute;
-    left: 28px;
-    width: 14px;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.18);
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  /* ── text panel ── */
-  #text-panel {
-    width: 320px;
-    min-width: 320px;
-    height: 100vh;
-    border-left: 1px solid #1a1a1a;
-    background: #050505;
-    padding: 28px 24px;
-    display: flex;
-    flex-direction: column;
+  #viewport {
+    position: fixed;
+    inset: 0;
     overflow: hidden;
   }
 
-  #panel-meta {
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #1a1a1a;
-  }
-
-  .meta-label {
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #444;
-    line-height: 1;
-    margin-bottom: 6px;
-  }
-
-  .meta-value {
-    font-size: 11px;
-    color: #777;
-    line-height: 1.6;
-    font-variant-numeric: tabular-nums;
-  }
-
-  #panel-title {
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #333;
-    margin-bottom: 16px;
-  }
-
-  #text-content {
-    flex: 1;
-    overflow-y: auto;
-    scrollbar-width: none;
-  }
-
-  #text-content::-webkit-scrollbar { display: none; }
-
-  .text-line {
-    white-space: pre;
-    font: 14px/22px "Helvetica Neue", Helvetica, Arial, sans-serif;
-    color: #888;
-  }
-
-  /* ── bottom-left title ── */
-  #title {
+  #world {
     position: absolute;
-    bottom: 12px;
-    left: 48px;
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #2a2a2a;
-    z-index: 3;
-  }
-
-  /* ── axis labels ── */
-  #axis-top, #axis-bottom {
-    position: absolute;
-    left: 48px;
-    font-size: 9px;
-    color: #333;
-    letter-spacing: 0.1em;
-    z-index: 3;
-  }
-  #axis-top { top: 18px; }
-  #axis-bottom { bottom: 32px; }
-
-  #axis-label-y {
-    position: absolute;
-    left: 10px;
+    width: 0;
+    height: 0;
+    left: 50%;
     top: 50%;
-    transform: rotate(-90deg) translateX(-50%);
-    transform-origin: left center;
-    font-size: 9px;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  .plane {
+    position: absolute;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    padding: 12px 16px;
+    transform-origin: center center;
+    will-change: transform, opacity;
+  }
+
+  .plane-text {
+    white-space: pre;
+    line-height: 1;
+  }
+
+  /* ── fog / depth fade handled by JS opacity ── */
+
+  /* ── HUD ── */
+  #hud {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    font: 10px/1.4 "SF Mono", ui-monospace, monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #333;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 3s ease;
+  }
+
+  #hud.faded { opacity: 0; }
+
+  #depth-indicator {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    z-index: 100;
+    font: 9px/1 "SF Mono", ui-monospace, monospace;
     color: #2a2a2a;
+    letter-spacing: 0.1em;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  #title-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 2s ease;
+  }
+
+  #title-overlay.hidden { opacity: 0; }
+
+  #title-overlay h1 {
+    font: 300 clamp(28px, 5vw, 48px)/1.1 "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #ccc;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+
+  #title-overlay p {
+    font: 10px/1.6 "SF Mono", ui-monospace, monospace;
+    color: #444;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    white-space: nowrap;
-    z-index: 3;
-  }
-
-  /* ── responsive ── */
-  @media (max-width: 700px) {
-    #text-panel { display: none; }
-    #canvas-container { padding: 24px 16px 24px 36px; }
-    #scan-line { left: 16px; right: 16px; }
-    .critical-mark { left: 8px; width: 10px; }
-    #title { left: 16px; }
-    #axis-top, #axis-bottom { left: 16px; }
-    #axis-label-y { left: 4px; }
   }
 </style>
 </head>
 <body>
-  <div id="container">
-    <div id="canvas-container">
-      <canvas id="spectrogram"></canvas>
-      <div id="scan-line"></div>
-      <span id="axis-top"></span>
-      <span id="axis-bottom"></span>
-      <span id="axis-label-y">width</span>
-      <span id="title">partition</span>
-    </div>
-    <div id="text-panel">
-      <div id="panel-meta">
-        <div class="meta-label">constraint</div>
-        <div class="meta-value" id="meta-width">—</div>
-        <div class="meta-value" id="meta-lines">—</div>
-      </div>
-      <div id="panel-title">text at width</div>
-      <div id="text-content"></div>
-    </div>
+  <div id="viewport">
+    <div id="world"></div>
   </div>
+
+  <div id="title-overlay">
+    <h1>Partition</h1>
+    <p>click to enter &middot; wasd to move &middot; mouse to look</p>
+  </div>
+
+  <div id="hud">wasd &middot; mouse look</div>
+  <div id="depth-indicator"></div>
 
   <script type="module" src="./partition.ts"></script>
 </body>

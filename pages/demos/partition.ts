@@ -1,314 +1,518 @@
 /**
- * Partition — bifurcation diagram of text line-breaking.
+ * Partition — navigable 3D text-space.
  *
- * A spectrogram where each row is a container width and each column is a
- * character position. Alternating luminance bands encode line membership,
- * making line-break phase transitions visible as shifting vertical boundaries
- * that merge and split as width varies by single pixels.
+ * A dense, self-accreting structure of text planes in CSS 3D space.
+ * First-person navigation through corridors, shafts, and stacked
+ * chambers made entirely of text laid out by Pretext.
  */
 
 import {
   prepareWithSegments,
   layoutWithLines,
-  layout,
   type PreparedTextWithSegments,
-  type LayoutCursor,
 } from "../../src/layout.ts";
 
-// ── source text ──
+// ── text fragments ──
+// Architectural observations that undermine their own spatial claims.
 
-const TEXT =
-  "The corridor narrows. Walls built from poured concrete and reclaimed timber " +
-  "converge toward a threshold that exists only in the plan — never constructed, " +
-  "always implied. Light arrives through slots cut at irregular intervals, each " +
-  "aperture calibrated to a specific hour. The architect understood that space is " +
-  "not contained but produced: by edges, by the absence of material, by the " +
-  "pressure of one surface against another. A room is a theory about how bodies " +
-  "might arrange themselves. The ceiling drops. Joists exposed. Douglas fir " +
-  "spanning fourteen feet without intermediate support, each member sized to " +
-  "deflect no more than the thickness of a pencil lead under full occupation. " +
-  "Circulation routes cross and separate. What appears as a single volume is " +
-  "actually three interlocking spatial events compressed into ninety square " +
-  "meters of habitable area.";
+const FRAGMENTS: string[] = [
+  "The wall that supports also divides. The division that separates also connects.",
 
-const FONT = '14px "Helvetica Neue", Helvetica, Arial, sans-serif';
-const LINE_HEIGHT = 22;
-const MIN_WIDTH = 80;
-const MAX_WIDTH = 700;
+  "There is no ground floor. Every foundation rests on a prior occupation.",
 
-// ── DOM refs ──
+  "The corridor promises arrival but delivers only more corridor.",
 
-const canvas = document.getElementById("spectrogram") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d")!;
-const scanLine = document.getElementById("scan-line")!;
-const textContent = document.getElementById("text-content")!;
-const metaWidth = document.getElementById("meta-width")!;
-const metaLines = document.getElementById("meta-lines")!;
-const axisTop = document.getElementById("axis-top")!;
-const axisBottom = document.getElementById("axis-bottom")!;
-const canvasContainer = document.getElementById("canvas-container")!;
+  "A door is not an opening. A door is the memory of a wall that failed.",
 
-// ── phase map types ──
+  "What you call structure is the residue of forces that have already left.",
 
-type PhaseMap = {
-  minWidth: number;
-  maxWidth: number;
-  stepCount: number;
-  textLength: number;
-  data: Uint8Array;
-  lineCounts: Uint16Array;
-  criticalWidths: number[];
+  "The ceiling of one room is the floor of a room that does not acknowledge it.",
+
+  "To inhabit is to be inhabited. The occupant is also occupied.",
+
+  "Light enters not through the window but through the absence the window names.",
+
+  "Every load-bearing wall carries also the weight of its own illegibility.",
+
+  "The staircase connects two levels while belonging to neither.",
+
+  "Density is not a quantity. It is the impossibility of distinguishing one space from the next.",
+
+  "The plan is a promise the building has already broken.",
+
+  "No surface here is original. Every wall is a palimpsest of partitions.",
+
+  "What was removed to make this room was itself a room.",
+
+  "The threshold is not where you cross. The threshold is where crossing becomes impossible.",
+
+  "Concrete does not forget. It remembers in cracks.",
+
+  "The address is a fiction. Inside, there are only more insides.",
+
+  "Ventilation is the building breathing against itself.",
+
+  "The corridor turns. Not because someone designed a turn, but because two walls met without agreeing.",
+
+  "You are not lost. Orientation was never available here.",
+
+  "The trace of the demolished is the structure of what remains.",
+
+  "A room this size should not exist. It exists by not being measured.",
+
+  "The pipes carry water to places the architect never intended.",
+
+  "Habitation precedes architecture. The plan arrives after the fact to explain what was already built.",
+
+  "What you call a wall is two surfaces that have never met.",
+
+  "Occupation is always double: to fill a space and to seize it.",
+
+  "The building does not end. It becomes adjacent to something it cannot distinguish from itself.",
+
+  "Every horizontal is a suppressed vertical.",
+
+  "The interior has no exterior. There is only a more distant interior.",
+
+  "Sound moves through this structure as if the walls were suggestions.",
+
+  "To demolish one room is to create six surfaces.",
+
+  "The city wrote this building in a language it cannot read.",
+];
+
+// ── config ──
+
+const FONT_FAMILY = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+const PLANE_COUNT = 90;
+const FOG_NEAR = 200;
+const FOG_FAR = 2800;
+const MOVE_SPEED = 4.5;
+const LOOK_SENSITIVITY = 0.0018;
+const CITY_RADIUS_X = 1600;
+const CITY_RADIUS_Z = 2400;
+const CITY_HEIGHT = 1800;
+
+// ── DOM ──
+
+const viewport = document.getElementById("viewport")!;
+const world = document.getElementById("world")!;
+const hud = document.getElementById("hud")!;
+const depthEl = document.getElementById("depth-indicator")!;
+const titleOverlay = document.getElementById("title-overlay")!;
+
+// ── camera ──
+
+const camera = {
+  x: 0,
+  y: -200,
+  z: 0,
+  rotX: 0, // pitch
+  rotY: 0, // yaw
 };
 
-// ── cursor → character index mapping ──
+// ── seeded PRNG for deterministic layout ──
 
-function buildSegmentCharOffsets(segments: string[]): number[] {
-  const offsets: number[] = new Array(segments.length + 1);
-  let pos = 0;
-  for (let i = 0; i < segments.length; i++) {
-    offsets[i] = pos;
-    pos += segments[i].length;
-  }
-  offsets[segments.length] = pos;
-  return offsets;
+function mulberry32(seed: number) {
+  return function (): number {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-// Cache grapheme offsets per segment for mid-segment cursors
-const graphemeOffsetsCache = new Map<number, number[]>();
-let segmentsRef: string[] = [];
+const rng = mulberry32(0xdeadbeef);
 
-function getGraphemeOffsets(segmentIndex: number): number[] {
-  let offsets = graphemeOffsetsCache.get(segmentIndex);
-  if (offsets) return offsets;
-
-  const seg = segmentsRef[segmentIndex];
-  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-  offsets = [];
-  for (const { index } of segmenter.segment(seg)) {
-    offsets.push(index);
-  }
-  graphemeOffsetsCache.set(segmentIndex, offsets);
-  return offsets;
+function randRange(lo: number, hi: number): number {
+  return lo + rng() * (hi - lo);
 }
 
-function cursorToCharIndex(
-  cursor: LayoutCursor,
-  segmentCharOffsets: number[]
-): number {
-  const base = segmentCharOffsets[cursor.segmentIndex];
-  if (cursor.graphemeIndex === 0) return base;
-  const graphemeOffsets = getGraphemeOffsets(cursor.segmentIndex);
-  if (cursor.graphemeIndex < graphemeOffsets.length) {
-    return base + graphemeOffsets[cursor.graphemeIndex];
-  }
-  // Past end of segment — return segment end
-  return segmentCharOffsets[cursor.segmentIndex + 1];
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(rng() * arr.length)];
 }
 
-// ── compute phase map ──
+// ── plane types for variety ──
 
-function computePhaseMap(
-  prepared: PreparedTextWithSegments,
-  segmentCharOffsets: number[]
-): PhaseMap {
-  const stepCount = MAX_WIDTH - MIN_WIDTH + 1;
-  const textLength = TEXT.length;
-  const data = new Uint8Array(stepCount * textLength);
-  const lineCounts = new Uint16Array(stepCount);
-  const criticalWidths: number[] = [];
+type PlaneKind =
+  | "wall-x" // perpendicular to X (side walls)
+  | "wall-z" // perpendicular to Z (front/back walls)
+  | "floor" // horizontal
+  | "ceiling" // horizontal overhead
+  | "lean"; // tilted, unstable
 
-  for (let row = 0; row < stepCount; row++) {
-    const width = MIN_WIDTH + row;
-    const result = layoutWithLines(prepared, width, LINE_HEIGHT);
-    lineCounts[row] = result.lineCount;
+// ── generate city ──
 
-    for (let lineIdx = 0; lineIdx < result.lines.length; lineIdx++) {
-      const line = result.lines[lineIdx];
-      const charStart = cursorToCharIndex(line.start, segmentCharOffsets);
-      const charEnd = cursorToCharIndex(line.end, segmentCharOffsets);
-      const end = Math.min(charEnd, textLength);
-      for (let col = charStart; col < end; col++) {
-        data[row * textLength + col] = lineIdx;
+type TextPlane = {
+  x: number;
+  y: number;
+  z: number;
+  rotX: number;
+  rotY: number;
+  rotZ: number;
+  width: number;
+  height: number;
+  fontSize: number;
+  lineHeight: number;
+  text: string;
+  kind: PlaneKind;
+  color: string;
+  bgAlpha: number;
+};
+
+function generatePlanes(): TextPlane[] {
+  const planes: TextPlane[] = [];
+
+  // ── corridors: pairs of parallel walls ──
+  const corridorCount = 6;
+  for (let c = 0; c < corridorCount; c++) {
+    const cz = randRange(-CITY_RADIUS_Z * 0.8, CITY_RADIUS_Z * 0.8);
+    const cx = randRange(-CITY_RADIUS_X * 0.4, CITY_RADIUS_X * 0.4);
+    const corridorLen = randRange(600, 1200);
+    const corridorWidth = randRange(120, 280);
+    const levels = Math.floor(randRange(2, 5));
+
+    for (let level = 0; level < levels; level++) {
+      const cy = -(level * randRange(200, 350));
+
+      // Left wall
+      planes.push({
+        x: cx - corridorWidth / 2,
+        y: cy,
+        z: cz,
+        rotX: 0,
+        rotY: 90,
+        rotZ: 0,
+        width: Math.floor(corridorLen * 0.6),
+        height: 200,
+        fontSize: randRange(11, 15),
+        lineHeight: randRange(18, 24),
+        text: pick(FRAGMENTS),
+        kind: "wall-x",
+        color: `hsl(0, 0%, ${randRange(50, 80)}%)`,
+        bgAlpha: randRange(0.03, 0.08),
+      });
+
+      // Right wall
+      planes.push({
+        x: cx + corridorWidth / 2,
+        y: cy,
+        z: cz + randRange(-100, 100),
+        rotX: 0,
+        rotY: -90,
+        rotZ: 0,
+        width: Math.floor(corridorLen * 0.5),
+        height: 180,
+        fontSize: randRange(10, 14),
+        lineHeight: randRange(16, 22),
+        text: pick(FRAGMENTS),
+        kind: "wall-x",
+        color: `hsl(0, 0%, ${randRange(45, 75)}%)`,
+        bgAlpha: randRange(0.02, 0.06),
+      });
+
+      // Floor between walls
+      if (rng() > 0.5) {
+        planes.push({
+          x: cx,
+          y: cy + 100,
+          z: cz,
+          rotX: -90,
+          rotY: 0,
+          rotZ: 0,
+          width: Math.floor(corridorWidth * 0.8),
+          height: Math.floor(corridorLen * 0.3),
+          fontSize: randRange(9, 12),
+          lineHeight: randRange(14, 18),
+          text: pick(FRAGMENTS),
+          kind: "floor",
+          color: `hsl(0, 0%, ${randRange(30, 50)}%)`,
+          bgAlpha: randRange(0.02, 0.05),
+        });
       }
     }
+  }
 
-    if (row > 0 && lineCounts[row] !== lineCounts[row - 1]) {
-      criticalWidths.push(width);
+  // ── scattered planes filling the volume ──
+  const remaining = PLANE_COUNT - planes.length;
+  for (let i = 0; i < remaining; i++) {
+    const kind = pick<PlaneKind>([
+      "wall-x",
+      "wall-z",
+      "wall-z",
+      "floor",
+      "ceiling",
+      "lean",
+    ]);
+    const fontSize = randRange(9, 18);
+    const lineHeight = Math.round(fontSize * randRange(1.4, 1.9));
+    let rotX = 0,
+      rotY = 0,
+      rotZ = 0;
+    let w = 0,
+      h = 0;
+
+    switch (kind) {
+      case "wall-x":
+        rotY = rng() > 0.5 ? 90 : -90;
+        w = Math.floor(randRange(180, 500));
+        h = Math.floor(randRange(120, 300));
+        break;
+      case "wall-z":
+        rotY = randRange(-15, 15);
+        w = Math.floor(randRange(200, 550));
+        h = Math.floor(randRange(100, 280));
+        break;
+      case "floor":
+        rotX = -90;
+        w = Math.floor(randRange(200, 450));
+        h = Math.floor(randRange(150, 350));
+        break;
+      case "ceiling":
+        rotX = 90;
+        w = Math.floor(randRange(180, 400));
+        h = Math.floor(randRange(120, 300));
+        break;
+      case "lean":
+        rotX = randRange(-35, 35);
+        rotY = randRange(-45, 45);
+        rotZ = randRange(-12, 12);
+        w = Math.floor(randRange(160, 420));
+        h = Math.floor(randRange(100, 260));
+        break;
     }
+
+    const y =
+      kind === "ceiling"
+        ? -randRange(300, CITY_HEIGHT)
+        : kind === "floor"
+          ? randRange(-50, 200)
+          : -randRange(-100, CITY_HEIGHT * 0.7);
+
+    planes.push({
+      x: randRange(-CITY_RADIUS_X, CITY_RADIUS_X),
+      y,
+      z: randRange(-CITY_RADIUS_Z, CITY_RADIUS_Z),
+      rotX,
+      rotY,
+      rotZ,
+      width: w,
+      height: h,
+      fontSize,
+      lineHeight,
+      text: pick(FRAGMENTS),
+      kind,
+      color: `hsl(0, 0%, ${randRange(40, 85)}%)`,
+      bgAlpha: randRange(0.02, 0.1),
+    });
   }
 
-  return { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, stepCount, textLength, data, lineCounts, criticalWidths };
+  return planes;
 }
 
-// ── render spectrogram ──
+// ── build DOM planes ──
 
-function renderSpectrogram(phaseMap: PhaseMap): void {
-  const { stepCount, textLength, data, criticalWidths } = phaseMap;
+type LivePlane = {
+  el: HTMLElement;
+  x: number;
+  y: number;
+  z: number;
+  rotX: number;
+  rotY: number;
+  rotZ: number;
+};
 
-  canvas.width = textLength;
-  canvas.height = stepCount;
-
-  const imageData = ctx.createImageData(textLength, stepCount);
-  const pixels = imageData.data;
-
-  const criticalSet = new Set(criticalWidths.map((w) => w - MIN_WIDTH));
-
-  for (let row = 0; row < stepCount; row++) {
-    const isCritical = criticalSet.has(row);
-    for (let col = 0; col < textLength; col++) {
-      const lineIndex = data[row * textLength + col];
-      const offset = (row * textLength + col) * 4;
-
-      // Alternating luminance — subtle, not harsh
-      let lum: number;
-      if (lineIndex % 3 === 0) lum = 32;
-      else if (lineIndex % 3 === 1) lum = 58;
-      else lum = 45;
-
-      if (isCritical) {
-        // Warm tint at phase transitions
-        pixels[offset] = lum + 14;
-        pixels[offset + 1] = lum + 2;
-        pixels[offset + 2] = lum - 6;
-      } else {
-        pixels[offset] = lum;
-        pixels[offset + 1] = lum;
-        pixels[offset + 2] = lum;
-      }
-      pixels[offset + 3] = 255;
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-// ── critical width marks on margin ──
-
-function renderCriticalMarks(phaseMap: PhaseMap): void {
-  // Remove old marks
-  for (const el of canvasContainer.querySelectorAll(".critical-mark")) {
-    el.remove();
-  }
-
-  const containerRect = canvas.getBoundingClientRect();
-
-  for (const w of phaseMap.criticalWidths) {
-    const row = w - MIN_WIDTH;
-    const yFraction = row / phaseMap.stepCount;
-    const yPx = containerRect.top + yFraction * containerRect.height;
-
-    const mark = document.createElement("div");
-    mark.className = "critical-mark";
-    mark.style.top = `${yPx}px`;
-    canvasContainer.appendChild(mark);
-  }
-}
-
-// ── text panel update ──
-
-function updateTextPanel(
-  prepared: PreparedTextWithSegments,
-  width: number
-): void {
-  const result = layoutWithLines(prepared, width, LINE_HEIGHT);
-
-  metaWidth.textContent = `${width}px`;
-  metaLines.textContent = `${result.lineCount} line${result.lineCount !== 1 ? "s" : ""}`;
-
-  // Rebuild text lines
-  textContent.innerHTML = "";
-  for (const line of result.lines) {
-    const div = document.createElement("div");
-    div.className = "text-line";
-    div.textContent = line.text;
-    textContent.appendChild(div);
-  }
-}
-
-// ── scan line positioning ──
-
-function positionScanLine(row: number, stepCount: number): void {
-  const rect = canvas.getBoundingClientRect();
-  const yFraction = row / stepCount;
-  const yPx = rect.top + yFraction * rect.height;
-  scanLine.style.top = `${yPx}px`;
-}
-
-// ── main ──
-
-async function main() {
+async function buildScene(): Promise<LivePlane[]> {
   await document.fonts.ready;
 
-  const prepared = prepareWithSegments(TEXT, FONT);
-  segmentsRef = prepared.segments;
+  const defs = generatePlanes();
+  const live: LivePlane[] = [];
 
-  const segmentCharOffsets = buildSegmentCharOffsets(prepared.segments);
-  const phaseMap = computePhaseMap(prepared, segmentCharOffsets);
+  for (const def of defs) {
+    const font = `${Math.round(def.fontSize)}px ${FONT_FAMILY}`;
+    const prepared = prepareWithSegments(def.text, font);
+    const result = layoutWithLines(prepared, def.width, def.lineHeight);
 
-  renderSpectrogram(phaseMap);
+    const el = document.createElement("div");
+    el.className = "plane";
+    el.style.width = `${def.width}px`;
+    el.style.background = `rgba(8, 8, 8, ${def.bgAlpha})`;
 
-  // Axis labels
-  axisTop.textContent = `${MIN_WIDTH}px`;
-  axisBottom.textContent = `${MAX_WIDTH}px`;
-
-  // Initial render of marks and text
-  renderCriticalMarks(phaseMap);
-  updateTextPanel(prepared, MIN_WIDTH + Math.floor(phaseMap.stepCount / 2));
-  positionScanLine(Math.floor(phaseMap.stepCount / 2), phaseMap.stepCount);
-
-  // ── interaction state ──
-  let hovering = false;
-  let currentRow = Math.floor(phaseMap.stepCount / 2);
-  let scanDirection = 1;
-  let lastScanTime = 0;
-  const SCAN_INTERVAL = 60; // ms per width step when auto-scanning
-
-  // ── hover ──
-  canvas.addEventListener("mousemove", (e) => {
-    hovering = true;
-    const rect = canvas.getBoundingClientRect();
-    const yFraction = (e.clientY - rect.top) / rect.height;
-    const row = Math.max(0, Math.min(phaseMap.stepCount - 1, Math.round(yFraction * phaseMap.stepCount)));
-    currentRow = row;
-
-    const width = MIN_WIDTH + row;
-    positionScanLine(row, phaseMap.stepCount);
-    updateTextPanel(prepared, width);
-  });
-
-  canvas.addEventListener("mouseleave", () => {
-    hovering = false;
-  });
-
-  // ── auto-scan loop ──
-  function tick(now: number) {
-    if (!hovering) {
-      if (now - lastScanTime > SCAN_INTERVAL) {
-        currentRow += scanDirection;
-        if (currentRow >= phaseMap.stepCount - 1) {
-          currentRow = phaseMap.stepCount - 1;
-          scanDirection = -1;
-        } else if (currentRow <= 0) {
-          currentRow = 0;
-          scanDirection = 1;
-        }
-
-        const width = MIN_WIDTH + currentRow;
-        positionScanLine(currentRow, phaseMap.stepCount);
-        updateTextPanel(prepared, width);
-        lastScanTime = now;
-      }
+    for (const line of result.lines) {
+      const lineEl = document.createElement("div");
+      lineEl.className = "plane-text";
+      lineEl.style.font = `${Math.round(def.fontSize)}px/${def.lineHeight}px ${FONT_FAMILY}`;
+      lineEl.style.color = def.color;
+      lineEl.textContent = line.text;
+      el.appendChild(lineEl);
     }
-    requestAnimationFrame(tick);
+
+    // Position via 3D transform
+    el.style.transform = [
+      `translate3d(${def.x}px, ${def.y}px, ${def.z}px)`,
+      `rotateX(${def.rotX}deg)`,
+      `rotateY(${def.rotY}deg)`,
+      `rotateZ(${def.rotZ}deg)`,
+      `translate(-50%, -50%)`,
+    ].join(" ");
+
+    world.appendChild(el);
+    live.push({
+      el,
+      x: def.x,
+      y: def.y,
+      z: def.z,
+      rotX: def.rotX,
+      rotY: def.rotY,
+      rotZ: def.rotZ,
+    });
   }
 
-  requestAnimationFrame(tick);
+  return live;
+}
 
-  // ── resize ──
-  window.addEventListener("resize", () => {
-    renderCriticalMarks(phaseMap);
-    positionScanLine(currentRow, phaseMap.stepCount);
-  });
+// ── input ──
+
+const keys: Record<string, boolean> = {};
+let pointerLocked = false;
+let hasInteracted = false;
+
+document.addEventListener("keydown", (e) => {
+  keys[e.key.toLowerCase()] = true;
+});
+document.addEventListener("keyup", (e) => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+viewport.addEventListener("click", () => {
+  if (!pointerLocked) {
+    viewport.requestPointerLock();
+  }
+});
+
+document.addEventListener("pointerlockchange", () => {
+  pointerLocked = document.pointerLockElement === viewport;
+  if (pointerLocked && !hasInteracted) {
+    hasInteracted = true;
+    titleOverlay.classList.add("hidden");
+    setTimeout(() => hud.classList.add("faded"), 6000);
+  }
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!pointerLocked) return;
+  camera.rotY += e.movementX * LOOK_SENSITIVITY;
+  camera.rotX -= e.movementY * LOOK_SENSITIVITY;
+  // Clamp pitch
+  camera.rotX = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, camera.rotX));
+});
+
+// ── update loop ──
+
+function updateCamera(): void {
+  const cosY = Math.cos(camera.rotY);
+  const sinY = Math.sin(camera.rotY);
+
+  let dx = 0,
+    dz = 0,
+    dy = 0;
+
+  if (keys["w"]) {
+    dz -= cosY;
+    dx += sinY;
+  }
+  if (keys["s"]) {
+    dz += cosY;
+    dx -= sinY;
+  }
+  if (keys["a"]) {
+    dx -= cosY;
+    dz -= sinY;
+  }
+  if (keys["d"]) {
+    dx += cosY;
+    dz += sinY;
+  }
+  if (keys[" "] || keys["e"]) dy -= 1; // rise
+  if (keys["shift"] || keys["q"]) dy += 1; // descend
+
+  const len = Math.sqrt(dx * dx + dz * dz + dy * dy);
+  if (len > 0) {
+    const inv = MOVE_SPEED / len;
+    camera.x += dx * inv;
+    camera.y += dy * inv;
+    camera.z += dz * inv;
+  }
+}
+
+function updateFog(planes: LivePlane[]): void {
+  const cx = camera.x,
+    cy = camera.y,
+    cz = camera.z;
+
+  for (const p of planes) {
+    const ddx = p.x - cx;
+    const ddy = p.y - cy;
+    const ddz = p.z - cz;
+    const dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+
+    // Fog: opacity falls from 1 to 0 between FOG_NEAR and FOG_FAR
+    let opacity: number;
+    if (dist < FOG_NEAR) {
+      opacity = 1;
+    } else if (dist > FOG_FAR) {
+      opacity = 0;
+    } else {
+      opacity = 1 - (dist - FOG_NEAR) / (FOG_FAR - FOG_NEAR);
+    }
+    // Cubic falloff for more cinematic fog
+    opacity = opacity * opacity * opacity;
+
+    p.el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+  }
+}
+
+function applyCamera(): void {
+  // Inverse camera transform: rotate then translate
+  const transform = [
+    `rotateX(${-camera.rotX}rad)`,
+    `rotateY(${-camera.rotY}rad)`,
+    `translate3d(${-camera.x}px, ${-camera.y}px, ${-camera.z}px)`,
+  ].join(" ");
+
+  world.style.transform = transform;
+}
+
+// ── depth indicator ──
+
+function updateHUD(): void {
+  const depth = Math.round(-camera.y);
+  depthEl.textContent = `${depth >= 0 ? "+" : ""}${depth}m`;
+}
+
+// ── main loop ──
+
+async function main() {
+  const planes = await buildScene();
+
+  // Set perspective dynamically
+  viewport.style.perspective = "600px";
+  viewport.style.perspectiveOrigin = "50% 50%";
+
+  // Initial camera look
+  camera.rotY = 0;
+  camera.z = -200;
+
+  function frame() {
+    updateCamera();
+    applyCamera();
+    updateFog(planes);
+    updateHUD();
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
 }
 
 main();
