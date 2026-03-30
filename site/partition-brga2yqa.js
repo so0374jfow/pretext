@@ -2707,172 +2707,200 @@ function layoutWithLines(prepared, maxWidth, lineHeight) {
   return { lineCount, height: lineCount * lineHeight, lines };
 }
 
-// pages/demos/accordion.ts
-var items = [
-  {
-    id: "shipping",
-    title: "Section 1",
-    text: "Mina cut the release note to three crisp lines, then realized the support caveat still needed one more sentence before it could ship without surprises."
-  },
-  {
-    id: "ops",
-    title: "Section 2",
-    text: "The handoff doc now reads like a proper morning checklist instead of a diary entry. Restart the worker, verify the queue drains, and only then mark the incident quiet. If the backlog grows again, page the same owner instead of opening a new thread."
-  },
-  {
-    id: "research",
-    title: "Section 3",
-    text: "We learned the hard way that a giant native scroll range can dominate everything else. The bug looked like DOM churn, then like pooling, then like rendering pressure, until the repros were stripped down enough to show the real limit. That changed the fix completely: simplify the DOM, keep virtualization honest, and stop hiding the worst-case path behind caches that only make the common frame look cheaper."
-  },
-  {
-    id: "mixed",
-    title: "Section 4",
-    text: "AGI 春天到了. بدأت الرحلة \uD83D\uDE80 and the long URL is https://example.com/reports/q3?lang=ar&mode=full. Nora wrote “please keep 10 000 rows visible,” Mina replied “trans­atlantic labels are still weird.”"
+// pages/demos/partition.ts
+var TEXT = "The corridor narrows. Walls built from poured concrete and reclaimed timber " + "converge toward a threshold that exists only in the plan — never constructed, " + "always implied. Light arrives through slots cut at irregular intervals, each " + "aperture calibrated to a specific hour. The architect understood that space is " + "not contained but produced: by edges, by the absence of material, by the " + "pressure of one surface against another. A room is a theory about how bodies " + "might arrange themselves. The ceiling drops. Joists exposed. Douglas fir " + "spanning fourteen feet without intermediate support, each member sized to " + "deflect no more than the thickness of a pencil lead under full occupation. " + "Circulation routes cross and separate. What appears as a single volume is " + "actually three interlocking spatial events compressed into ninety square " + "meters of habitable area.";
+var FONT = '14px "Helvetica Neue", Helvetica, Arial, sans-serif';
+var LINE_HEIGHT = 22;
+var MIN_WIDTH = 80;
+var MAX_WIDTH = 700;
+var canvas = document.getElementById("spectrogram");
+var ctx = canvas.getContext("2d");
+var scanLine = document.getElementById("scan-line");
+var textContent = document.getElementById("text-content");
+var metaWidth = document.getElementById("meta-width");
+var metaLines = document.getElementById("meta-lines");
+var axisTop = document.getElementById("axis-top");
+var axisBottom = document.getElementById("axis-bottom");
+var canvasContainer = document.getElementById("canvas-container");
+function buildSegmentCharOffsets(segments) {
+  const offsets = new Array(segments.length + 1);
+  let pos = 0;
+  for (let i = 0;i < segments.length; i++) {
+    offsets[i] = pos;
+    pos += segments[i].length;
   }
-];
-var st = {
-  openItemId: "shipping",
-  events: {
-    clickedItemId: null
+  offsets[segments.length] = pos;
+  return offsets;
+}
+var graphemeOffsetsCache = new Map;
+var segmentsRef = [];
+function getGraphemeOffsets(segmentIndex) {
+  let offsets = graphemeOffsetsCache.get(segmentIndex);
+  if (offsets)
+    return offsets;
+  const seg = segmentsRef[segmentIndex];
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  offsets = [];
+  for (const { index } of segmenter.segment(seg)) {
+    offsets.push(index);
   }
-};
-var domCache = null;
-var preparedCache = {
-  font: "",
-  items: []
-};
-var scheduledRaf = null;
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", boot, { once: true });
-} else {
-  boot();
+  graphemeOffsetsCache.set(segmentIndex, offsets);
+  return offsets;
 }
-function getRequiredElement(id) {
-  const element = document.getElementById(id);
-  if (!(element instanceof HTMLElement))
-    throw new Error(`#${id} not found`);
-  return element;
+function cursorToCharIndex(cursor, segmentCharOffsets) {
+  const base = segmentCharOffsets[cursor.segmentIndex];
+  if (cursor.graphemeIndex === 0)
+    return base;
+  const graphemeOffsets = getGraphemeOffsets(cursor.segmentIndex);
+  if (cursor.graphemeIndex < graphemeOffsets.length) {
+    return base + graphemeOffsets[cursor.graphemeIndex];
+  }
+  return segmentCharOffsets[cursor.segmentIndex + 1];
 }
-function getRequiredChild(parent, selector, ctor) {
-  const element = parent.querySelector(selector);
-  if (!(element instanceof ctor))
-    throw new Error(`${selector} not found`);
-  return element;
+function computePhaseMap(prepared, segmentCharOffsets) {
+  const stepCount = MAX_WIDTH - MIN_WIDTH + 1;
+  const textLength = TEXT.length;
+  const data = new Uint8Array(stepCount * textLength);
+  const lineCounts = new Uint16Array(stepCount);
+  const criticalWidths = [];
+  for (let row = 0;row < stepCount; row++) {
+    const width = MIN_WIDTH + row;
+    const result = layoutWithLines(prepared, width, LINE_HEIGHT);
+    lineCounts[row] = result.lineCount;
+    for (let lineIdx = 0;lineIdx < result.lines.length; lineIdx++) {
+      const line = result.lines[lineIdx];
+      const charStart = cursorToCharIndex(line.start, segmentCharOffsets);
+      const charEnd = cursorToCharIndex(line.end, segmentCharOffsets);
+      const end = Math.min(charEnd, textLength);
+      for (let col = charStart;col < end; col++) {
+        data[row * textLength + col] = lineIdx;
+      }
+    }
+    if (row > 0 && lineCounts[row] !== lineCounts[row - 1]) {
+      criticalWidths.push(width);
+    }
+  }
+  return { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH, stepCount, textLength, data, lineCounts, criticalWidths };
 }
-function getAccordionItemNodes(list) {
-  const roots = Array.from(list.querySelectorAll(".accordion-item"));
-  if (roots.length !== items.length)
-    throw new Error("accordion item count mismatch");
-  return roots.map((root) => ({
-    root,
-    toggle: getRequiredChild(root, ".accordion-toggle", HTMLButtonElement),
-    title: getRequiredChild(root, ".accordion-title", HTMLSpanElement),
-    meta: getRequiredChild(root, ".accordion-meta", HTMLSpanElement),
-    glyph: getRequiredChild(root, ".accordion-glyph", HTMLSpanElement),
-    body: getRequiredChild(root, ".accordion-body", HTMLDivElement),
-    inner: getRequiredChild(root, ".accordion-inner", HTMLDivElement),
-    copy: getRequiredChild(root, ".accordion-copy", HTMLParagraphElement)
-  }));
+function renderSpectrogram(phaseMap) {
+  const { stepCount, textLength, data, criticalWidths } = phaseMap;
+  canvas.width = textLength;
+  canvas.height = stepCount;
+  const imageData = ctx.createImageData(textLength, stepCount);
+  const pixels = imageData.data;
+  const criticalSet = new Set(criticalWidths.map((w) => w - MIN_WIDTH));
+  for (let row = 0;row < stepCount; row++) {
+    const isCritical = criticalSet.has(row);
+    for (let col = 0;col < textLength; col++) {
+      const lineIndex = data[row * textLength + col];
+      const offset = (row * textLength + col) * 4;
+      let lum;
+      if (lineIndex % 3 === 0)
+        lum = 32;
+      else if (lineIndex % 3 === 1)
+        lum = 58;
+      else
+        lum = 45;
+      if (isCritical) {
+        pixels[offset] = lum + 14;
+        pixels[offset + 1] = lum + 2;
+        pixels[offset + 2] = lum - 6;
+      } else {
+        pixels[offset] = lum;
+        pixels[offset + 1] = lum;
+        pixels[offset + 2] = lum;
+      }
+      pixels[offset + 3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
 }
-function initializeStaticContent() {
-  if (domCache === null)
-    return;
-  for (let index = 0;index < items.length; index++) {
-    const item = items[index];
-    const itemDom = domCache.items[index];
-    itemDom.root.dataset["id"] = item.id;
-    itemDom.toggle.dataset["id"] = item.id;
-    itemDom.title.textContent = item.title;
-    itemDom.copy.textContent = item.text;
+function renderCriticalMarks(phaseMap) {
+  for (const el of canvasContainer.querySelectorAll(".critical-mark")) {
+    el.remove();
+  }
+  const containerRect = canvas.getBoundingClientRect();
+  for (const w of phaseMap.criticalWidths) {
+    const row = w - MIN_WIDTH;
+    const yFraction = row / phaseMap.stepCount;
+    const yPx = containerRect.top + yFraction * containerRect.height;
+    const mark = document.createElement("div");
+    mark.className = "critical-mark";
+    mark.style.top = `${yPx}px`;
+    canvasContainer.appendChild(mark);
   }
 }
-function parsePx(value) {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function updateTextPanel(prepared, width) {
+  const result = layoutWithLines(prepared, width, LINE_HEIGHT);
+  metaWidth.textContent = `${width}px`;
+  metaLines.textContent = `${result.lineCount} line${result.lineCount !== 1 ? "s" : ""}`;
+  textContent.innerHTML = "";
+  for (const line of result.lines) {
+    const div = document.createElement("div");
+    div.className = "text-line";
+    div.textContent = line.text;
+    textContent.appendChild(div);
+  }
 }
-function getFontFromStyles(styles) {
-  return styles.font.length > 0 ? styles.font : `${styles.fontStyle} ${styles.fontVariant} ${styles.fontWeight} ${styles.fontSize} / ${styles.lineHeight} ${styles.fontFamily}`;
+function positionScanLine(row, stepCount) {
+  const rect = canvas.getBoundingClientRect();
+  const yFraction = row / stepCount;
+  const yPx = rect.top + yFraction * rect.height;
+  scanLine.style.top = `${yPx}px`;
 }
-function refreshPrepared(font) {
-  if (preparedCache.font === font)
-    return;
-  preparedCache.font = font;
-  preparedCache.items = items.map((item) => prepare(item.text, font));
-}
-function scheduleRender() {
-  if (domCache === null)
-    return;
-  if (scheduledRaf !== null)
-    return;
-  scheduledRaf = requestAnimationFrame(function renderAccordionFrame(now) {
-    scheduledRaf = null;
-    if (render(now))
-      scheduleRender();
+async function main() {
+  await document.fonts.ready;
+  const prepared = prepareWithSegments(TEXT, FONT);
+  segmentsRef = prepared.segments;
+  const segmentCharOffsets = buildSegmentCharOffsets(prepared.segments);
+  const phaseMap = computePhaseMap(prepared, segmentCharOffsets);
+  renderSpectrogram(phaseMap);
+  axisTop.textContent = `${MIN_WIDTH}px`;
+  axisBottom.textContent = `${MAX_WIDTH}px`;
+  renderCriticalMarks(phaseMap);
+  updateTextPanel(prepared, MIN_WIDTH + Math.floor(phaseMap.stepCount / 2));
+  positionScanLine(Math.floor(phaseMap.stepCount / 2), phaseMap.stepCount);
+  let hovering = false;
+  let currentRow = Math.floor(phaseMap.stepCount / 2);
+  let scanDirection = 1;
+  let lastScanTime = 0;
+  const SCAN_INTERVAL = 60;
+  canvas.addEventListener("mousemove", (e) => {
+    hovering = true;
+    const rect = canvas.getBoundingClientRect();
+    const yFraction = (e.clientY - rect.top) / rect.height;
+    const row = Math.max(0, Math.min(phaseMap.stepCount - 1, Math.round(yFraction * phaseMap.stepCount)));
+    currentRow = row;
+    const width = MIN_WIDTH + row;
+    positionScanLine(row, phaseMap.stepCount);
+    updateTextPanel(prepared, width);
   });
-}
-function boot() {
-  const list = getRequiredElement("list");
-  domCache = {
-    list,
-    items: getAccordionItemNodes(list)
-  };
-  initializeStaticContent();
-  domCache.list.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element))
-      return;
-    const toggle = target.closest(".accordion-toggle");
-    if (toggle === null)
-      return;
-    const id = toggle.dataset["id"];
-    if (id === undefined)
-      return;
-    st.events.clickedItemId = id;
-    scheduleRender();
+  canvas.addEventListener("mouseleave", () => {
+    hovering = false;
   });
-  document.fonts.ready.then(() => {
-    scheduleRender();
-  });
+  function tick(now) {
+    if (!hovering) {
+      if (now - lastScanTime > SCAN_INTERVAL) {
+        currentRow += scanDirection;
+        if (currentRow >= phaseMap.stepCount - 1) {
+          currentRow = phaseMap.stepCount - 1;
+          scanDirection = -1;
+        } else if (currentRow <= 0) {
+          currentRow = 0;
+          scanDirection = 1;
+        }
+        const width = MIN_WIDTH + currentRow;
+        positionScanLine(currentRow, phaseMap.stepCount);
+        updateTextPanel(prepared, width);
+        lastScanTime = now;
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
   window.addEventListener("resize", () => {
-    scheduleRender();
+    renderCriticalMarks(phaseMap);
+    positionScanLine(currentRow, phaseMap.stepCount);
   });
-  scheduleRender();
 }
-function render(_now) {
-  if (domCache === null)
-    return false;
-  const firstCopy = domCache.items[0]?.copy;
-  const firstInner = domCache.items[0]?.inner;
-  if (firstCopy === undefined || firstInner === undefined)
-    return false;
-  const copyStyles = getComputedStyle(firstCopy);
-  const innerStyles = getComputedStyle(firstInner);
-  const font = getFontFromStyles(copyStyles);
-  const lineHeight = parsePx(copyStyles.lineHeight);
-  const contentWidth = firstCopy.getBoundingClientRect().width;
-  const paddingY = parsePx(innerStyles.paddingTop) + parsePx(innerStyles.paddingBottom);
-  let openItemId = st.openItemId;
-  if (st.events.clickedItemId !== null) {
-    openItemId = openItemId === st.events.clickedItemId ? null : st.events.clickedItemId;
-  }
-  refreshPrepared(font);
-  const panelHeights = [];
-  const panelMeta = [];
-  for (let index = 0;index < items.length; index++) {
-    const metrics = layout(preparedCache.items[index], contentWidth, lineHeight);
-    panelHeights.push(Math.ceil(metrics.height + paddingY));
-    panelMeta.push(`Measurement: ${metrics.lineCount} lines · ${Math.round(metrics.height)}px`);
-  }
-  st.openItemId = openItemId;
-  st.events.clickedItemId = null;
-  for (let index = 0;index < items.length; index++) {
-    const item = items[index];
-    const itemDom = domCache.items[index];
-    const expanded = openItemId === item.id;
-    itemDom.meta.textContent = panelMeta[index];
-    itemDom.body.style.height = expanded ? `${panelHeights[index]}px` : "0px";
-    itemDom.glyph.style.transform = expanded ? "rotate(90deg)" : "rotate(0deg)";
-    itemDom.toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-  }
-  return false;
-}
+main();
