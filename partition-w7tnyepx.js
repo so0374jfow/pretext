@@ -2908,7 +2908,7 @@ function generateArchitecture() {
   return els;
 }
 function computeLight(px, py, pz, nx, ny, nz) {
-  let totalR = 0, totalG = 0, totalB = 0;
+  let total = 0;
   const ambient = 0.08;
   for (const light of LIGHTS) {
     const dx = light.x - px;
@@ -2921,34 +2921,15 @@ function computeLight(px, py, pz, nx, ny, nz) {
     const lx = dx * inv, ly = dy * inv, lz = dz * inv;
     const dot = Math.abs(nx * lx + ny * ly + nz * lz);
     const atten = 1 - Math.min(1, dist / light.radius);
-    const brightness = dot * atten * atten * light.intensity;
-    if (light.warm) {
-      totalR += brightness * 1;
-      totalG += brightness * 0.92;
-      totalB += brightness * 0.78;
-    } else {
-      totalR += brightness * 0.8;
-      totalG += brightness * 0.88;
-      totalB += brightness * 1;
-    }
+    total += dot * atten * atten * light.intensity;
   }
-  const r = Math.min(1, ambient + totalR);
-  const g = Math.min(1, ambient + totalG);
-  const b = Math.min(1, ambient + totalB);
-  const a = Math.min(0.85, 0.1 + (totalR + totalG + totalB) * 0.6);
-  return { r, g, b, a };
+  const brightness = Math.min(1, ambient + total);
+  const a = Math.min(0.9, 0.08 + total * 0.7);
+  return { brightness, a };
 }
 function lightColor(px, py, pz, nx, ny, nz) {
-  const { r, g, b, a } = computeLight(px, py, pz, nx, ny, nz);
-  return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a.toFixed(3)})`;
-}
-function lightGlow(px, py, pz) {
-  const { r, g, b } = computeLight(px, py, pz, 0, -1, 0);
-  const brightness = r + g + b;
-  if (brightness < 0.4)
-    return "none";
-  const glowA = Math.min(0.08, brightness * 0.03);
-  return `0 0 12px rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${glowA.toFixed(3)})`;
+  const { a } = computeLight(px, py, pz, nx, ny, nz);
+  return `rgba(0, 0, 0, ${a.toFixed(3)})`;
 }
 function buildWireframeBox(el, world) {
   const { w, h, d } = el;
@@ -2978,9 +2959,6 @@ function buildWireframeBox(el, world) {
     face.style.transform = f.t;
     const color = lightColor(el.x, el.y, el.z, f.nx, f.ny, f.nz);
     face.style.borderColor = color;
-    const glow = lightGlow(el.x, el.y, el.z);
-    if (glow !== "none")
-      face.style.boxShadow = glow;
     if (el.text && f.name === el.textFace && f.fw > 60 && f.fh > 30) {
       const textContainer = document.createElement("div");
       textContainer.className = "face-text";
@@ -2988,9 +2966,9 @@ function buildWireframeBox(el, world) {
       const prepared = prepareWithSegments(el.text, font);
       const textWidth = Math.max(40, f.fw - 20);
       const result = layoutWithLines(prepared, textWidth, el.lineHeight);
-      const { r, g, b } = computeLight(el.x, el.y, el.z, f.nx, f.ny, f.nz);
-      const textAlpha = Math.min(0.7, 0.15 + (r + g + b) * 0.3);
-      const textColor = `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${textAlpha.toFixed(2)})`;
+      const { a: litA } = computeLight(el.x, el.y, el.z, f.nx, f.ny, f.nz);
+      const textAlpha = Math.min(0.75, 0.1 + litA * 0.5);
+      const textColor = `rgba(0, 0, 0, ${textAlpha.toFixed(2)})`;
       for (const line of result.lines) {
         const lineEl = document.createElement("div");
         lineEl.className = "tl";
@@ -3031,11 +3009,10 @@ function buildLightMarkers(world) {
     const marker = document.createElement("div");
     marker.className = "light-marker";
     marker.style.transform = `translate3d(${light.x - 2}px, ${light.y - 2}px, ${light.z}px)`;
-    const alpha = light.warm ? "255, 240, 210" : "200, 215, 255";
-    marker.style.background = `rgba(${alpha}, ${0.6 * light.intensity})`;
+    marker.style.background = `rgba(0, 0, 0, ${0.4 * light.intensity})`;
     marker.style.boxShadow = [
-      `0 0 ${30 * light.intensity}px ${8 * light.intensity}px rgba(${alpha}, ${0.15 * light.intensity})`,
-      `0 0 ${80 * light.intensity}px ${25 * light.intensity}px rgba(${alpha}, ${0.05 * light.intensity})`
+      `0 0 ${30 * light.intensity}px ${8 * light.intensity}px rgba(0, 0, 0, ${0.08 * light.intensity})`,
+      `0 0 ${80 * light.intensity}px ${25 * light.intensity}px rgba(0, 0, 0, ${0.03 * light.intensity})`
     ].join(", ");
     world.appendChild(marker);
   }
